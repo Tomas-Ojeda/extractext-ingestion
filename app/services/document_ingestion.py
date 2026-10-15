@@ -8,12 +8,11 @@ from app.services.checksum_service import compute_checksum
 DEFAULT_ERROR_MESSAGE = "Error inesperado al procesar el documento"
 
 
-async def fetch_by_checksum(checksum: str) -> dict | None:
+async def fetch_by_checksum(checksum: str, client: httpx.AsyncClient) -> dict | None:
     """Consulta storage por checksum. Devuelve None si no existe (404)."""
     url = f"{settings.storage_url}/api/v1/documents/by-checksum/{checksum}"
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, timeout=10.0)
+        response = await client.get(url, timeout=settings.storage_timeout_seconds)
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -41,16 +40,15 @@ def _extract_detail(response: httpx.Response, default: str) -> str:
     return default
 
 
-async def extract_content(file_bytes: bytes, filename: str) -> str:
+async def extract_content(file_bytes: bytes, filename: str, client: httpx.AsyncClient) -> str:
     """Envía el PDF al extractor y devuelve el texto extraído."""
     url = f"{settings.extractor_url}/api/v1/extract"
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                files={"file": (filename, file_bytes, "application/pdf")},
-                timeout=30.0,
-            )
+        response = await client.post(
+            url,
+            files={"file": (filename, file_bytes, "application/pdf")},
+            timeout=settings.extractor_timeout_seconds,
+        )
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -74,13 +72,12 @@ async def extract_content(file_bytes: bytes, filename: str) -> str:
     )
 
 
-async def persist_document(filename: str, content: str, checksum: str) -> tuple[dict, bool]:
+async def persist_document(filename: str, content: str, checksum: str, client: httpx.AsyncClient) -> tuple[dict, bool]:
     """Persiste el documento. Devuelve (documento, creado). Maneja carrera 409."""
     url = f"{settings.storage_url}/api/v1/documents/"
     payload = {"filename": filename, "content": content, "checksum": checksum}
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload, timeout=10.0)
+        response = await client.post(url, json=payload, timeout=settings.storage_timeout_seconds)
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -90,7 +87,7 @@ async def persist_document(filename: str, content: str, checksum: str) -> tuple[
     if response.status_code == 201:
         return response.json(), True
     if response.status_code == 409:
-        existing = await fetch_by_checksum(checksum)
+        existing = await fetch_by_checksum(checksum, client)
         if existing is not None:
             return existing, False
         raise HTTPException(
@@ -106,12 +103,12 @@ async def persist_document(filename: str, content: str, checksum: str) -> tuple[
     )
 
 
-async def ingest_document(file_bytes: bytes, filename: str) -> tuple[dict, bool]:
+async def ingest_document(file_bytes: bytes, filename: str, client: httpx.AsyncClient) -> tuple[dict, bool]:
     """Caso de uso: subir documento. Devuelve (documento, creado)."""
     checksum = compute_checksum(file_bytes)
-    existing = await fetch_by_checksum(checksum)
+    existing = await fetch_by_checksum(checksum, client)
     if existing is not None:
         return existing, False
 
-    content = await extract_content(file_bytes, filename)
-    return await persist_document(filename or "", content, checksum)
+    content = await extract_content(file_bytes, filename, client)
+    return await persist_document(filename or "", content, checksum, client)

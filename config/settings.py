@@ -17,5 +17,9 @@ class Settings(BaseSettings):
     extractor_url: str = "http://pdf-extractxt-extractor:8000"
     storage_url: str = "http://pdf-extractxt-storage:8000"
 
+    # Timeouts de salida, en segundos (factor III)
+    extractor_timeout_seconds: int = 30
+    storage_timeout_seconds: int = 10
+
 
 settings = Settings()

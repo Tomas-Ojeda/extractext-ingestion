@@ -1,6 +1,7 @@
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 
+from app.api.dependencies import get_http_client
 from app.services.document_ingestion import ingest_document
 
 
@@ -16,11 +17,13 @@ class DocumentResponse(BaseModel):
 
 @router.post("/", response_model=DocumentResponse)
 async def upload_document(
-    file: UploadFile = File(...), response: Response = None
+    file: UploadFile = File(...),
+    response: Response = None,
+    client=Depends(get_http_client),
 ):
     file_bytes = await file.read()
     try:
-        document, created = await ingest_document(file_bytes, file.filename or "")
+        document, created = await ingest_document(file_bytes, file.filename or "", client)
     except HTTPException:
         raise
 
