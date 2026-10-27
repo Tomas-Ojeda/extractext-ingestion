@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     app_name: str = "extracText Ingestion"
     app_version: str = "0.1.0"
     app_debug: bool = False
-
     extractor_url: str = "http://pdf-extractxt-extractor:8000"
     storage_url: str = "http://pdf-extractxt-storage:8000"
 
