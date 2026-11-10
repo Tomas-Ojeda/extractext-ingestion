@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     app_name: str = "extracText Ingestion"
     app_version: str = "0.1.0"
     app_debug: bool = False
+
+    # Consul (service discovery + health checks)
+    consul_url: str = "http://consul:8500"
+    service_name: str = "ingestion"
+
     extractor_url: str = "http://pdf-extractxt-extractor:8000"
     storage_url: str = "http://pdf-extractxt-storage:8000"
 
